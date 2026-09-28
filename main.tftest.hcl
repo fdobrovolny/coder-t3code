@@ -11,7 +11,7 @@ run "defaults" {
     error_message = "Installation defaults and directory normalization must be preserved."
   }
   assert {
-    condition     = coder_app.web[0].url == "http://localhost:3773" && coder_app.web[0].share == "owner" && coder_app.web[0].subdomain
+    condition     = !var.public_access && coder_app.web[0].url == "http://localhost:3773" && coder_app.web[0].share == "owner" && coder_app.web[0].subdomain
     error_message = "Expose port 3773 through an owner-only subdomain app."
   }
   assert {
@@ -21,6 +21,23 @@ run "defaults" {
   assert {
     condition     = length(module.coder_utils.scripts) == 2
     error_message = "Run install then server startup."
+  }
+}
+
+run "public_access_is_opt_in" {
+  command = plan
+  variables {
+    agent_id      = "test-agent"
+    workdir       = "/workspace"
+    public_access = true
+  }
+  assert {
+    condition     = coder_app.web[0].share == "public" && coder_app.web[0].subdomain && coder_app.web[0].url == "http://localhost:3773"
+    error_message = "Public access must expose the existing subdomain app through Coder."
+  }
+  assert {
+    condition     = coder_app.pair[0].share == "owner"
+    error_message = "Generating pairing credentials must remain owner-only."
   }
 }
 
@@ -57,10 +74,11 @@ run "custom_configuration" {
 run "install_only" {
   command = plan
   variables {
-    agent_id   = "test-agent"
-    workdir    = "/workspace"
-    enable_web = false
-    subdomain  = false
+    agent_id      = "test-agent"
+    workdir       = "/workspace"
+    public_access = true
+    enable_web    = false
+    subdomain     = false
   }
   assert {
     condition     = length(coder_app.web) == 0 && length(coder_app.pair) == 0 && local.start_script == null && length(module.coder_utils.scripts) == 1

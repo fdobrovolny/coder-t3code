@@ -56,6 +56,13 @@ variable "enable_web" {
   default     = true
 }
 
+variable "public_access" {
+  description = "Allow access to the web UI and backend through the Coder app proxy without a Coder login. T3 Code pairing still applies. The pairing terminal remains owner-only."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
 variable "pair_app_display_name" {
   description = "Display name for the T3 Code pairing terminal app."
   type        = string
@@ -145,7 +152,7 @@ resource "coder_app" "web" {
   url          = "http://localhost:${var.web_port}"
   icon         = var.icon
   subdomain    = var.subdomain
-  share        = "owner"
+  share        = var.public_access ? "public" : "owner"
   order        = var.order
   group        = var.group
   open_in      = "tab"
@@ -162,6 +169,7 @@ resource "coder_app" "pair" {
 
   agent_id     = var.agent_id
   slug         = "t3code-pair"
+  share        = "owner"
   display_name = var.pair_app_display_name
   command      = <<-EOT
     #!/bin/bash

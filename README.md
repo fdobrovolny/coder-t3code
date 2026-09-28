@@ -2,7 +2,7 @@
 
 Install and run [T3 Code](https://github.com/pingdotgg/t3code) in a Coder workspace, using the same Terraform module structure as [coder-opencode](https://github.com/fdobrovolny/coder-opencode).
 
-- **T3 Code Web** opens the browser UI through Coder's owner-only app proxy.
+- **T3 Code Web** opens the browser UI through Coder's app proxy, with owner-only access by default.
 - **T3 Code Pair** opens a terminal and generates a fresh one-time browser pairing token.
 
 ## Usage
@@ -11,7 +11,7 @@ Reference a tagged release to keep module updates predictable:
 
 ```hcl
 module "t3code" {
-  source = "git::https://github.com/fdobrovolny/coder-t3code.git?ref=v0.1.0"
+  source = "git::https://github.com/fdobrovolny/coder-t3code.git?ref=v0.2.0"
 
   agent_id = coder_agent.main.id
   workdir  = "/home/coder/project"
@@ -34,9 +34,29 @@ For local development, use `source = "../coder-t3code"`. If uploading a template
 3. Open **T3 Code Web**. On that Coder app's origin, navigate to `/pair#token=<TOKEN>`, replacing `<TOKEN>` with the copied token. For example: `https://<your-coder-app-subdomain>/pair#token=<TOKEN>`.
 4. Add your project directory in T3 Code's UI, or run `t3 project add /home/coder/project` in the workspace terminal.
 
-The URL printed by `t3 pair` uses `127.0.0.1`, which refers to your browser's own machine. Replace that origin with the Coder app origin, preserving `/pair#token=...`. Pairing links are one-time credentials; generate another for each new browser/device. Keep tokens private. Coder proxy authentication and T3 Code's own pairing both apply.
+The URL printed by `t3 pair` uses `127.0.0.1`, which refers to your browser's own machine. Replace that origin with the Coder app origin, preserving `/pair#token=...`. Pairing links are one-time credentials; generate another for each new browser/device. Keep tokens private. By default, Coder proxy authentication and T3 Code's own pairing both apply.
 
 The module uses `t3 serve`, which does not open a browser or automatically register the working directory as a project. `workdir` sets the server's initial directory and is created during installation.
+
+## Native clients and public access
+
+Set `public_access = true` to allow desktop and mobile clients to reach the web UI and backend without a Coder login:
+
+```hcl
+module "t3code" {
+  source = "git::https://github.com/fdobrovolny/coder-t3code.git?ref=v0.2.0"
+
+  agent_id      = coder_agent.main.id
+  workdir       = "/home/coder/project"
+  public_access = true
+}
+```
+
+This sets the web app's [Coder sharing level](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app) to `public`. T3 Code's own pairing and authentication still apply, and the pairing terminal remains owner-only. The default `false` requires the workspace owner's Coder login. This setting affects the entire web app, including its backend API; it does not create a separate backend endpoint.
+
+Use a fresh pairing link with the HTTPS Coder app origin in place of `127.0.0.1`, as described above. The client must be able to resolve and reach that hostname, and any reverse proxy in front of Coder must allow access without an additional browser login. Your Coder deployment must permit public app sharing.
+
+“Public” removes Coder's login requirement; it does not change network reachability. If the app hostname is reachable only over Tailscale, access remains limited by your tailnet rules. If that hostname is internet-accessible, anyone can reach the T3 endpoint, with T3 authentication protecting authenticated operations. The server continues listening on loopback behind Coder's proxy.
 
 ## Configuration
 
@@ -47,6 +67,7 @@ The module uses `t3 serve`, which does not open a browser or automatically regis
 | `t3code_version` | `latest` | Stable release on first installation, or an exact version such as `0.0.42` |
 | `install_t3code` | `true` | Install T3 Code; set false for a preinstalled `t3` on PATH |
 | `enable_web` | `true` | Start the server and create web and pairing apps |
+| `public_access` | `false` | Allow web UI/backend access without a Coder login; T3 pairing still applies |
 | `web_port` | `3773` | Loopback HTTP/WebSocket port |
 | `subdomain` | `true` | Must be true when web support is enabled |
 | `web_app_display_name` | `T3 Code Web` | Web app label |
@@ -75,7 +96,7 @@ terraform test
 python3 tests/test_scripts.py
 ```
 
-Tests cover app configuration, invalid inputs, install-only mode, pinned installation reuse, CLI linking, duplicate startup, occupied ports, early server failure, and log permissions. The shell tests use Terraform-rendered templates and isolated fake executables.
+Tests cover owner-only defaults, opt-in public access, pairing terminal privacy, app configuration, invalid inputs, install-only mode, pinned installation reuse, CLI linking, duplicate startup, occupied ports, early server failure, and log permissions. The shell tests use Terraform-rendered templates and isolated fake executables.
 
 The standalone T3 Code 0.0.42 release was also checked locally for server startup, web UI delivery, environment discovery, and pairing-token generation. End-to-end access through a deployed Coder wildcard proxy still needs validation in your Coder installation.
 
