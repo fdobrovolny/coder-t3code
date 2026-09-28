@@ -1,0 +1,58 @@
+#!/bin/bash
+# Adapted from fdobrovolny/coder-opencode (Apache-2.0).
+set -euo pipefail
+umask 077
+
+ARG_WORKDIR=$(printf '%s' '${ARG_WORKDIR}' | base64 -d)
+ARG_WEB_PORT='${ARG_WEB_PORT}'
+export PATH="$${HOME}/.local/bin:$${PATH}"
+cd "$${ARG_WORKDIR}"
+
+MODULE_DIR="$${HOME}/.coder-modules/fdobrovolny/t3code"
+SERVER_LOG="$${MODULE_DIR}/logs/server.log"
+PID_FILE="$${MODULE_DIR}/server.pid"
+SERVER_URL="http://127.0.0.1:$${ARG_WEB_PORT}"
+mkdir -p "$${MODULE_DIR}/logs"
+# Headless startup logs contain one-time pairing credentials.
+touch "$${SERVER_LOG}"
+chmod 600 "$${SERVER_LOG}"
+
+# Serialize concurrent starts. The server must not inherit the lock descriptor.
+exec 9> "$${MODULE_DIR}/start.lock"
+flock -x 9
+server_ready() {
+  curl -fsS -o /dev/null --max-time 1 "$${SERVER_URL}/.well-known/t3/environment" 2>/dev/null
+}
+if [ -f "$${PID_FILE}" ]; then
+  read -r previous_pid < "$${PID_FILE}"
+  if [[ "$${previous_pid}" =~ ^[0-9]+$ ]] && kill -0 "$${previous_pid}" 2>/dev/null && server_ready; then
+    echo "T3 Code server is already running at $${SERVER_URL}."
+    exit 0
+  fi
+fi
+if server_ready; then
+  echo "ERROR: Port $${ARG_WEB_PORT} is already serving HTTP without this module's live PID. Choose another web_port or stop that server." >&2
+  exit 1
+fi
+
+nohup t3 serve --host 127.0.0.1 --port "$${ARG_WEB_PORT}" </dev/null >> "$${SERVER_LOG}" 2>&1 9>&- &
+SERVER_PID=$!
+printf '%s\n' "$${SERVER_PID}" > "$${PID_FILE}"
+
+for _ in {1..60}; do
+  if ! kill -0 "$${SERVER_PID}" 2>/dev/null; then
+    rm -f "$${PID_FILE}"
+    echo "ERROR: T3 Code server exited. Check $${SERVER_LOG}." >&2
+    exit 1
+  fi
+  if server_ready; then
+    echo "T3 Code server started. Logs: $${SERVER_LOG}"
+    exit 0
+  fi
+  sleep 1
+done
+kill "$${SERVER_PID}" 2>/dev/null || true
+wait "$${SERVER_PID}" 2>/dev/null || true
+rm -f "$${PID_FILE}"
+echo "ERROR: T3 Code server did not become ready within 60 seconds. Check $${SERVER_LOG}." >&2
+exit 1

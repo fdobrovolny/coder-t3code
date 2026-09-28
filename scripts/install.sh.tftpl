@@ -1,0 +1,35 @@
+#!/bin/bash
+# Adapted from fdobrovolny/coder-opencode (Apache-2.0).
+set -euo pipefail
+
+ARG_INSTALL_T3CODE='${ARG_INSTALL_T3CODE}'
+ARG_T3CODE_VERSION=$(printf '%s' '${ARG_T3CODE_VERSION}' | base64 -d)
+ARG_WORKDIR=$(printf '%s' '${ARG_WORKDIR}' | base64 -d)
+export PATH="$${HOME}/.local/bin:$${PATH}"
+
+if [ "$${ARG_INSTALL_T3CODE}" = true ]; then
+  # Keep an existing installation for latest; reconcile explicit version pins.
+  current_version=$(t3 --version 2>/dev/null || true)
+  current_version=$${current_version#t3 v}
+  if ! command -v t3 >/dev/null 2>&1 || { [ "$${ARG_T3CODE_VERSION}" != latest ] && [ "$${current_version}" != "$${ARG_T3CODE_VERSION}" ]; }; then
+    installer=$(mktemp)
+    trap 'rm -f "$installer"' EXIT
+    curl -fsSL https://t3.codes/install.sh -o "$${installer}"
+    if [ "$${ARG_T3CODE_VERSION}" = latest ]; then
+      T3CODE_CHANNEL=stable T3CODE_VERSION='' T3CODE_INSTALL_BIN_DIR="$${HOME}/.local/bin" sh "$${installer}"
+    else
+      T3CODE_VERSION="$${ARG_T3CODE_VERSION}" T3CODE_INSTALL_BIN_DIR="$${HOME}/.local/bin" sh "$${installer}"
+    fi
+  fi
+fi
+
+if ! command -v t3 >/dev/null 2>&1; then
+  echo 'ERROR: T3 Code is not installed. Enable install_t3code or install it in pre_install_script.' >&2
+  exit 1
+fi
+if [ -n "$${CODER_SCRIPT_BIN_DIR:-}" ]; then
+  mkdir -p "$${CODER_SCRIPT_BIN_DIR}"
+  ln -sf "$(command -v t3)" "$${CODER_SCRIPT_BIN_DIR}/t3"
+fi
+mkdir -p "$${ARG_WORKDIR}"
+t3 --version
