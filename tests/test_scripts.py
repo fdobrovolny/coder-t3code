@@ -45,7 +45,7 @@ class Scripts(unittest.TestCase):
                               text=True, timeout=10)
 
     def test_existing_pinned_install_and_path_link(self):
-        self.executable('t3', 'echo "t3 v0.0.42"\n')
+        self.executable('t3', 'test "$1" = --version\necho "t3 v0.0.42"\n')
         self.executable('curl', 'exit 99\n')
         self.env['CODER_SCRIPT_BIN_DIR'] = str(self.root / 'coder-bin')
         script = self.render('install', ARG_INSTALL_T3CODE='true',
@@ -53,6 +53,28 @@ class Scripts(unittest.TestCase):
         result = self.run_script(script)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue((self.root / 'coder-bin/t3').is_symlink())
+
+    def test_existing_latest_install_updates(self):
+        self.executable('t3', '''case "$1" in
+  --version) echo "t3 v0.0.42" ;;
+  update) touch "$TEST_ROOT/updated" ;;
+  *) exit 99 ;;
+esac
+''')
+        self.executable('curl', 'exit 99\n')
+        script = self.render('install', ARG_INSTALL_T3CODE='true',
+                             ARG_T3CODE_VERSION=base64.b64encode(b'latest').decode())
+        result = self.run_script(script)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue((self.root / 'updated').exists())
+
+    def test_existing_disabled_install_skips_update(self):
+        self.executable('t3', 'test "$1" = --version\necho "t3 v0.0.42"\n')
+        self.executable('curl', 'exit 99\n')
+        script = self.render('install', ARG_INSTALL_T3CODE='false',
+                             ARG_T3CODE_VERSION=base64.b64encode(b'latest').decode())
+        result = self.run_script(script)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_missing_disabled_install_fails(self):
         script = self.render('install', ARG_INSTALL_T3CODE='false',

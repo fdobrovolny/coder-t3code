@@ -64,7 +64,7 @@ Use a fresh pairing link with the HTTPS Coder app origin in place of `127.0.0.1`
 | --- | --- | --- |
 | `agent_id` | required | Coder agent ID |
 | `workdir` | required | Server working directory |
-| `t3code_version` | `latest` | Stable release on first installation, or an exact version such as `0.0.42` |
+| `t3code_version` | `latest` | Latest release, updated on startup, or an exact version such as `0.0.42` |
 | `install_t3code` | `true` | Install T3 Code; set false for a preinstalled `t3` on PATH |
 | `enable_web` | `true` | Start the server and create web and pairing apps |
 | `public_access` | `false` | Allow web UI/backend access without a Coder login; T3 pairing still applies |
@@ -76,7 +76,7 @@ Use a fresh pairing link with the HTTPS Coder app origin in place of `127.0.0.1`
 | `order`, `group` | `null` | Coder app ordering and grouping |
 | `pre_install_script`, `post_install_script` | `null` | Custom Bash installation hooks |
 
-`latest` preserves an existing installation. An explicit version pin installs that version when it differs from the installed one. Version changes take effect when the server is restarted; restart the workspace after changing a pin. When installation is disabled, the supplied binary's version is your responsibility.
+`latest` runs `t3 update` on startup when T3 Code is already installed. An explicit version pin installs that version when it differs from the installed one. Version changes take effect when the server is restarted; restart the workspace after changing a pin. When installation is disabled, the supplied binary's version is your responsibility.
 
 The installer uses [T3 Code's official installation script](https://t3.codes/install.sh), which downloads and verifies a standalone release. It installs `t3` under `$HOME/.local/bin` and links it into `CODER_SCRIPT_BIN_DIR` for Coder terminal sessions. T3 Code stores its state under `$HOME/.t3` by default; persist this directory to retain projects and pairing sessions. This module supports one T3 Code instance per workspace user.
 

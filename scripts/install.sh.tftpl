@@ -8,7 +8,7 @@ ARG_WORKDIR=$(printf '%s' '${ARG_WORKDIR}' | base64 -d)
 export PATH="$${HOME}/.local/bin:$${PATH}"
 
 if [ "$${ARG_INSTALL_T3CODE}" = true ]; then
-  # Keep an existing installation for latest; reconcile explicit version pins.
+  # Update existing installations for latest; reconcile explicit version pins.
   current_version=$(t3 --version 2>/dev/null || true)
   current_version=$${current_version#t3 v}
   if ! command -v t3 >/dev/null 2>&1 || { [ "$${ARG_T3CODE_VERSION}" != latest ] && [ "$${current_version}" != "$${ARG_T3CODE_VERSION}" ]; }; then
@@ -20,6 +20,8 @@ if [ "$${ARG_INSTALL_T3CODE}" = true ]; then
     else
       T3CODE_VERSION="$${ARG_T3CODE_VERSION}" T3CODE_INSTALL_BIN_DIR="$${HOME}/.local/bin" sh "$${installer}"
     fi
+  elif [ "$${ARG_T3CODE_VERSION}" = latest ]; then
+    t3 update
   fi
 fi
 
