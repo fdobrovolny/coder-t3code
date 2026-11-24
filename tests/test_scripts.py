@@ -83,6 +83,21 @@ esac
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('not installed', result.stderr)
 
+    def test_latest_repairs_launcher_with_missing_runtime(self):
+        self.executable('t3', 'exec "$TEST_ROOT/missing-runtime/t3" "$@"\n')
+        self.executable('curl', """cat > "${@: -1}" <<'INSTALLER'
+cat > "$T3CODE_INSTALL_BIN_DIR/t3" <<'LAUNCHER'
+#!/bin/sh
+echo 't3 v0.1.11'
+LAUNCHER
+INSTALLER
+""")
+        script = self.render('install', ARG_INSTALL_T3CODE='true',
+                             ARG_T3CODE_VERSION=base64.b64encode(b'latest').decode())
+        result = self.run_script(script)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), 't3 v0.1.11')
+
     def test_start_and_duplicate_start(self):
         self.executable('t3', 'touch "$TEST_ROOT/ready"\nexec sleep 30\n')
         self.executable('curl', 'test -f "$TEST_ROOT/ready"\n')
