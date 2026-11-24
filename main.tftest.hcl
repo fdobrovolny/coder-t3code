@@ -15,7 +15,7 @@ run "defaults" {
     error_message = "Expose port 3773 through an owner-only subdomain app."
   }
   assert {
-    condition     = strcontains(coder_app.pair[0].command, "t3 pair") && coder_app.pair[0].open_in == "slim-window"
+    condition     = strcontains(coder_app.pair[0].command, "python3 - --port 3773") && coder_app.pair[0].open_in == "slim-window"
     error_message = "Provide a pairing terminal."
   }
   assert {
@@ -58,7 +58,7 @@ run "custom_configuration" {
     post_install_script   = "echo after"
   }
   assert {
-    condition     = local.workdir == "/" && coder_app.web[0].url == "http://localhost:8080"
+    condition     = local.workdir == "/" && coder_app.web[0].url == "http://localhost:8080" && strcontains(coder_app.pair[0].command, "python3 - --port 8080")
     error_message = "Preserve root workdir and custom port."
   }
   assert {

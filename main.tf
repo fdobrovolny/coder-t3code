@@ -176,9 +176,12 @@ resource "coder_app" "pair" {
     set -e
     export PATH="$HOME/.local/bin:$PATH"
     cd "$(echo -n '${base64encode(local.workdir)}' | base64 -d)"
-    echo "Use the token below at your Coder T3 Code Web URL: /pair#token=<TOKEN>"
-    t3 pair
-    read -r -p "Press Enter to close this terminal."
+    if [ -t 0 ]; then
+      trap 'read -r -p "Press Enter to close this terminal." || true' EXIT
+    fi
+    python3 - --port ${var.web_port} <<'T3_PAIR_PY'
+    ${indent(4, file("${path.module}/scripts/pair.py"))}
+    T3_PAIR_PY
   EOT
   icon         = var.icon
   order        = var.order

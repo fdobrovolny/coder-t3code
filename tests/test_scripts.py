@@ -1,12 +1,17 @@
 """Exercise the Terraform-rendered scripts with isolated fake executables."""
 import base64
+import contextlib
+import io
 import json
 import os
 from pathlib import Path
+import runpy
 import signal
 import subprocess
+import sys
 import tempfile
 import unittest
+from unittest.mock import MagicMock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -133,6 +138,38 @@ INSTALLER
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('server exited', result.stderr)
         self.assertFalse((self.root / '.coder-modules/fdobrovolny/t3code/server.pid').exists())
+
+
+class Pairing(unittest.TestCase):
+    def test_qr_and_manual_pairing_use_the_same_coder_address(self):
+        main = runpy.run_path(str(ROOT / 'scripts/pair.py'))['main']
+        origin = 'https://t3code-web--main--workspace--user.apps.example.com'
+        url = f'{origin}/pair#token=example-token'
+        issued = subprocess.CompletedProcess(
+            't3', 0, stdout=json.dumps({'pairUrl': url, 'credential': 'example-token'})
+        )
+        ready = MagicMock()
+        qr = MagicMock()
+        output = io.StringIO()
+        with (
+            patch.dict(os.environ, {
+                'VSCODE_PROXY_URI': 'https://{{port}}--main--workspace--user.apps.example.com',
+            }, clear=True),
+            patch.object(sys, 'argv', ['pair.py', '--port', '8080']),
+            patch.dict(main.__globals__, urlopen=ready, render_qr=qr),
+            patch('subprocess.run', return_value=issued) as t3,
+            contextlib.redirect_stdout(output),
+        ):
+            main()
+
+        ready.assert_called_once_with('http://127.0.0.1:8080/.well-known/t3/environment', timeout=3)
+        self.assertEqual(t3.call_args.args[0], [
+            't3', 'auth', 'pairing', 'create', '--base-url', origin, '--ttl', '5m', '--json',
+        ])
+        qr.assert_called_once_with(url)
+        self.assertEqual(output.getvalue().splitlines()[-4:], [
+            f'Pairing URL: {url}', f'Server: {origin}', 'Token:', 'example-token',
+        ])
 
 
 if __name__ == '__main__':
