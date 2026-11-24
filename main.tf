@@ -180,7 +180,7 @@ resource "coder_app" "pair" {
       trap 'read -r -p "Press Enter to close this terminal." || true' EXIT
     fi
     python3 - --port ${var.web_port} <<'T3_PAIR_PY'
-    ${indent(4, file("${path.module}/scripts/pair.py"))}
+    ${file("${path.module}/scripts/pair.py")}
     T3_PAIR_PY
   EOT
   icon         = var.icon

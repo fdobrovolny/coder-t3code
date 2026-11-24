@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import runpy
+import shlex
 import signal
 import subprocess
 import sys
@@ -48,6 +49,23 @@ class Scripts(unittest.TestCase):
     def run_script(self, script):
         return subprocess.run(['bash', str(script)], env=self.env, capture_output=True,
                               text=True, timeout=10)
+
+    def test_pairing_terminal_embeds_valid_python(self):
+        self.executable('python3', f'''
+test "$*" = "- --port 8080"
+exec {shlex.quote(sys.executable)} -c 'import sys; compile(sys.stdin.read(), "pair.py", "exec")'
+''')
+        result = subprocess.run(
+            ['terraform', 'console', '-plan', '-var=agent_id=test', f'-var=workdir={self.workdir}',
+             '-var=web_port=8080'],
+            cwd=ROOT, input='jsonencode(coder_app.pair[0].command)\n',
+            text=True, capture_output=True, check=True,
+        )
+        command = json.loads(json.loads(result.stdout)).replace('$HOME', str(self.root))
+        script = self.root / 'pair.sh'
+        script.write_text(command)
+        result = self.run_script(script)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_existing_pinned_install_and_path_link(self):
         self.executable('t3', 'test "$1" = --version\necho "t3 v0.0.42"\n')
