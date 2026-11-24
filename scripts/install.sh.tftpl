@@ -34,4 +34,11 @@ if [ -n "$${CODER_SCRIPT_BIN_DIR:-}" ]; then
   ln -sf "$(command -v t3)" "$${CODER_SCRIPT_BIN_DIR}/t3"
 fi
 mkdir -p "$${ARG_WORKDIR}"
+if [ -n '${ARG_PAIR_SCRIPT}' ]; then
+  module_dir="$${HOME}/.coder-modules/fdobrovolny/t3code"
+  mkdir -p "$module_dir"
+  pair_script=$(mktemp "$module_dir/pair.XXXXXXXX")
+  printf '%s' '${ARG_PAIR_SCRIPT}' | base64 -d > "$pair_script"
+  mv -f "$pair_script" "$module_dir/pair.py"
+fi
 t3 --version

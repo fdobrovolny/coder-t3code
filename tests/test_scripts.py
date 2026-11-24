@@ -34,6 +34,8 @@ class Scripts(unittest.TestCase):
         p.chmod(0o755)
 
     def render(self, name, **args):
+        if name == 'install':
+            args.setdefault('ARG_PAIR_SCRIPT', '')
         values = dict(ARG_WORKDIR=base64.b64encode(str(self.workdir).encode()).decode(), **args)
         expr = f'templatefile("{ROOT}/scripts/{name}.sh.tftpl", {json.dumps(values)})'
         result = subprocess.run(['terraform', 'console'], cwd=ROOT, input=f'jsonencode({expr})\n',
@@ -50,22 +52,27 @@ class Scripts(unittest.TestCase):
         return subprocess.run(['bash', str(script)], env=self.env, capture_output=True,
                               text=True, timeout=10)
 
-    def test_pairing_terminal_embeds_valid_python(self):
+    def test_pairing_terminal_runs_the_installed_helper(self):
+        self.executable('t3', 'echo "t3 v0.0.42"\n')
         self.executable('python3', f'''
-test "$*" = "- --port 8080"
-exec {shlex.quote(sys.executable)} -c 'import sys; compile(sys.stdin.read(), "pair.py", "exec")'
+test "$2 $3" = "--port 8080"
+exec {shlex.quote(sys.executable)} -c 'import sys; from pathlib import Path; compile(Path(sys.argv[1]).read_text(), "pair.py", "exec")' "$1"
 ''')
         result = subprocess.run(
             ['terraform', 'console', '-plan', '-var=agent_id=test', f'-var=workdir={self.workdir}',
-             '-var=web_port=8080'],
-            cwd=ROOT, input='jsonencode(coder_app.pair[0].command)\n',
+             '-var=web_port=8080', '-var=install_t3code=false'],
+            cwd=ROOT, input='jsonencode([local.install_script, coder_app.pair[0].command])\n',
             text=True, capture_output=True, check=True,
         )
-        command = json.loads(json.loads(result.stdout)).replace('$HOME', str(self.root))
-        script = self.root / 'pair.sh'
-        script.write_text(command)
-        result = self.run_script(script)
-        self.assertEqual(result.returncode, 0, result.stderr)
+        install, command = json.loads(json.loads(result.stdout))
+        self.assertNotIn('def render_qr', command)
+        install_script = self.root / 'install.sh'
+        install_script.write_text(install.replace('${HOME}', str(self.root)))
+        pair_script = self.root / 'pair.sh'
+        pair_script.write_text(command.replace('$HOME', str(self.root)))
+        for script in (install_script, pair_script):
+            result = self.run_script(script)
+            self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_existing_pinned_install_and_path_link(self):
         self.executable('t3', 'test "$1" = --version\necho "t3 v0.0.42"\n')

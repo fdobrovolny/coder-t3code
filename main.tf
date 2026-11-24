@@ -116,11 +116,13 @@ variable "t3code_version" {
 }
 
 locals {
-  workdir = var.workdir == "/" ? "/" : trimsuffix(var.workdir, "/")
+  workdir          = var.workdir == "/" ? "/" : trimsuffix(var.workdir, "/")
+  module_directory = "$HOME/.coder-modules/fdobrovolny/t3code"
   install_script = templatefile("${path.module}/scripts/install.sh.tftpl", {
     ARG_INSTALL_T3CODE = tostring(var.install_t3code)
     ARG_T3CODE_VERSION = base64encode(var.t3code_version)
     ARG_WORKDIR        = base64encode(local.workdir)
+    ARG_PAIR_SCRIPT    = var.enable_web ? filebase64("${path.module}/scripts/pair.py") : ""
   })
   start_script = var.enable_web ? templatefile("${path.module}/scripts/start.sh.tftpl", {
     ARG_WORKDIR  = base64encode(local.workdir)
@@ -133,7 +135,7 @@ module "coder_utils" {
   version = "0.0.1"
 
   agent_id            = var.agent_id
-  module_directory    = "$HOME/.coder-modules/fdobrovolny/t3code"
+  module_directory    = local.module_directory
   display_name_prefix = "T3 Code"
   icon                = var.icon
   pre_install_script  = var.pre_install_script
@@ -179,9 +181,7 @@ resource "coder_app" "pair" {
     if [ -t 0 ]; then
       trap 'read -r -p "Press Enter to close this terminal." || true' EXIT
     fi
-    python3 - --port ${var.web_port} <<'T3_PAIR_PY'
-    ${file("${path.module}/scripts/pair.py")}
-    T3_PAIR_PY
+    python3 "${local.module_directory}/pair.py" --port ${var.web_port}
   EOT
   icon         = var.icon
   order        = var.order
